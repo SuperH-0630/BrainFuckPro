@@ -6,15 +6,22 @@
 
 #include "brainfuck.h"
 #define COMMAND_LINE_STR_SIZE (20)
+#define FILE_NAME_SIZE (20)
 
 static bf_env *global_env;
 static struct option long_options[] = {
         {"version", no_argument, 0, 'v'},
         {"help", no_argument, 0, 'h'},
         {"eval", required_argument, 0, 'e'},
+        {"print", no_argument, 0, 'p'},
+        {"step", no_argument, 0, 's'},
+        {"information", no_argument, 0, 'i'},
+        {"noninit", no_argument, 0, 'n'},
         {0, 0, 0, 0}
 };
 char *program_name;
+bool print_code = false;
+bool initEnv = true;  // 每次执行命令行参数指定的文件时都重置读取头位置
 
 void printUsage(void);
 void printVersion(void);
@@ -36,7 +43,7 @@ int main(int argc, char **argv){
 
     while (1) {
         option_index = 0;
-        int c = getopt_long (argc, argv, "vhe:", long_options, &option_index);
+        int c = getopt_long (argc, argv, "vhsie:", long_options, &option_index);
         if (c == -1)
             break;
 
@@ -51,12 +58,32 @@ int main(int argc, char **argv){
                 goto end;
             case 'e': {
                 bf_code code;
-                code = bf_parserBrainFuck_Str((char *) optarg);
+                code = bf_parserBrainFuck_Str((char *) optarg);  // 不会回到头部重新执行
+
+                if (print_code) {
+                    printf("code: ");
+                    bf_printBrainFuck(code);
+                    printf("\n");
+                }
+
                 bf_runBrainFuck(code, global_env);
                 bf_printError("eval error", global_env);
                 bf_freeBrainFuck(code);
+                printf("\n");
                 break;
             }
+            case 's':
+                bf_setEnvMode(global_env, step, 1);
+                break;
+            case 'i':
+                bf_setEnvMode(global_env, information, 1);
+                break;
+            case 'p':
+                print_code = true;
+                break;
+            case 'n':
+                initEnv = false;
+                break;
             default:
             case '?':
                 printUsage();
@@ -89,9 +116,13 @@ int main(int argc, char **argv){
 void printUsage(void) {
     printf("Usage: %s[options] file..\n", program_name);
     printf("Options: \n");
-    printf(" -e --eval\t\tRun code in a string\n");
-    printf(" -v --version\t\tshow version\n");
-    printf(" -h --help\t\tshow help\n\n");
+    printf(" -e --eval\t\t\tRun code in a string\n");
+    printf(" -v --version\t\t\tShow version\n");
+    printf(" -h --help\t\t\tShow help\n");
+    printf(" -s --step\t\t\tRun with step mode\n");
+    printf(" -i --information\t\tRun with information mode\n");
+    printf(" -n --noninit\t\t\tDon't init env after run file\n\n");
+    printf(" -p --print\t\t\tPrint code after parser\n\n");
 
     printf("CommandLine Options: \n");
     printf(" v show version\n");
@@ -124,11 +155,14 @@ void printMenu(void) {
     printf("+ v + show version               +\n");
     printf("+ h + show help                  +\n");
     printf("+ m + show menu                  +\n");
+    printf("+ d + print code after parser    +\n");
     printf("+ w + print env information      +\n");
     printf("+ p + print paper tape           +\n");
     printf("+ r + print read head            +\n");
     printf("+ s + run in step model          +\n");
     printf("+ i + run with information       +\n");
+    printf("+ n + set new env                +\n");
+    printf("+ f + run file                   +\n");
     printf("+ c + clear screen(May not work) +\n");
     printf("+ q + quit                       +\n");
     printf("+ e + exit the menu              +\n");
@@ -146,12 +180,21 @@ int runFile(int argc, char **argv, bf_env *env) {
         }
 
         bf_code code;
+        if (initEnv)
+            bf_initEnv(env);  // 每次执行文件都回到头部重新执行
         code = bf_parserBrainFuck_File(file);
+
+        if (print_code) {
+            printf("code: ");
+            bf_printBrainFuck(code);
+            printf("\n");
+        }
+
         bf_runBrainFuck(code, env);
         bf_printError("run error", env);
-        bf_initEnv(env);
         bf_freeBrainFuck(code);
         fclose(file);
+        printf("\n");
 
         optind++;
     }
@@ -173,7 +216,7 @@ int clInformation(int ch, bf_env *env) {
         case 'h':
             printUsage();
             break;
-        case 'm':
+        case 'm': {
             printMenu();
             printf("Enter the operation:");
 
@@ -184,7 +227,16 @@ int clInformation(int ch, bf_env *env) {
             ch = getc(stdin);
             return_ = clInformation(ch, env);
             goto NOT_CLEAR;  // 不用清除stdin
+        }
         case 'q':  // 退出菜单
+            return_ = 1;
+            break;
+        case 'd':
+            print_code = !print_code;
+            if (print_code)
+                printf("print code mode on\n");
+            else
+                printf("print code mode off\n");
             break;
         case 'w':
             bf_printEnvWithMode(env);
@@ -209,6 +261,54 @@ int clInformation(int ch, bf_env *env) {
             else
                 printf("information mode off\n");
             break;
+        case 'n':
+            bf_resetEnv(global_env);
+            break;
+        case 'f': {
+            int size = FILE_NAME_SIZE;
+            char *str = calloc(size + 1, sizeof(char ));
+
+            int del_ch;
+            while ((del_ch = getc(stdin) != '\n') && del_ch != EOF)
+                continue;
+
+            printf("Enter file address:");
+            fgets(str, FILE_NAME_SIZE + 1, stdin);
+            while (!strchr(str, '\n') && !feof(stdin) && !ferror(stdin)) {
+                char *new = calloc(size + FILE_NAME_SIZE + 1, sizeof(char ));
+                strcpy(new, str);
+                fgets(new + size, FILE_NAME_SIZE + 1, stdin);
+                free(str);
+                str = new;
+                size += FILE_NAME_SIZE;
+            }
+
+            *strchr(str, '\n') = '\0';  // 去掉回车
+            FILE *file = fopen(str, "r");
+
+            if (file == NULL) {
+                printf("file = '%s'\n", str);
+                perror("read file error222");
+                return -1;
+            }
+
+            bf_code code;
+            code = bf_parserBrainFuck_File(file);
+
+            if (print_code) {
+                printf("code: ");
+                bf_printBrainFuck(code);
+                printf("\n");
+            }
+
+            return_ = bf_runBrainFuck(code, env);
+            bf_printError("run error", env);
+            bf_freeBrainFuck(code);
+            fclose(file);
+            free(str);
+            printf("\n");
+            goto NOT_CLEAR;
+        }
         case 'c':
             system("clear");  // 清空
             break;
@@ -248,7 +348,8 @@ int runCommandLine(bf_env *env) {
             continue;
         } else
             ungetc(ch, stdin);
-        runCommandLine_(env);
+        if (runCommandLine_(env) == -2)
+            return 0;  // 退出
     }
 }
 
@@ -269,10 +370,18 @@ int runCommandLine_(bf_env *env) {
 
     bf_code code;
     code = bf_parserBrainFuck_Str(str);
+
+    if (print_code) {
+        printf("code: ");
+        bf_printBrainFuck(code);
+        printf("\n");
+    }
+
     status = bf_runBrainFuck(code, env);
     bf_printError("command line error", env);
     bf_freeBrainFuck(code);
     free(str);
+    printf("\n");
     return status;
 }
 

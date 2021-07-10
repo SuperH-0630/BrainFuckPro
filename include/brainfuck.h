@@ -34,6 +34,7 @@ char *bf_getVersion(void);  // 获取版本
 // bf_env指针通常可以使用void *来代替
 bf_env *bf_setEnv(void);  // 设置一个运行环境(返回一个指针)
 void bf_freeEnv(bf_env *env);  // 释放一个环境
+void bf_resetEnv(bf_env *env);
 void bf_initEnv(bf_env *env);  // 复位读取头到初始位置
 
 // bf_code指针通常可以使用void *来代替

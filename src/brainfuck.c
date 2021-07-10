@@ -6,6 +6,7 @@
 
 #include "brainfuck.h"
 #include "_brainfuck.h"
+#include "mem.h"
 
 #ifndef BF_VERSION
 #define BF_VERSION "Magic Version"
@@ -20,27 +21,33 @@ static void freeItem(bf_item *item);
 static bf_item *makeItem(void);
 static void addItem(bf_item *global);
 
+
 char *bf_getVersionInfo(void) {
     return BF_VERSION "\n" BF_VERSION_INFO "\n";
 }
 
+
 char *bf_getVersion(void) {
     return BF_VERSION;
 }
+
 
 static bf_code make_bf_code(void) {
     bf_code code = calloc(1, sizeof(struct bf_code));
     return code;
 }
 
+
 static void free_bf_code(bf_code code) {
     free(code->byte);
     free(code);
 }
 
+
 void bf_freeBrainFuck(bf_code code) {
     free_bf_code(code);
 }
+
 
 bf_code bf_parserBrainFuck_Str(const char *str) {
     char ch;
@@ -64,11 +71,12 @@ bf_code bf_parserBrainFuck_Str(const char *str) {
             continue;  // 其他内容也被忽略
         }
 
-        if (index > size) {
+        if (index >= size) {
             bf_byte byte = calloc(size + FILE_READ_SIZE + 1, sizeof(bf_byte));
             strcpy(byte, code->byte);
             free(code->byte);
             code->byte = byte;
+            size += FILE_READ_SIZE;
         }
 
         code->byte[index] = (char)ch;
@@ -77,6 +85,7 @@ bf_code bf_parserBrainFuck_Str(const char *str) {
 
     return code;
 }
+
 
 bf_code bf_parserBrainFuck_File(FILE *file) {
     int ch;
@@ -103,6 +112,7 @@ bf_code bf_parserBrainFuck_File(FILE *file) {
             strcpy(byte, code->byte);
             free(code->byte);
             code->byte = byte;
+            size += FILE_READ_SIZE;
         }
 
         code->byte[index] = (char)ch;
@@ -112,14 +122,17 @@ bf_code bf_parserBrainFuck_File(FILE *file) {
     return code;
 }
 
+
 void bf_printBrainFuck(bf_code code) {
     printf("%s", code->byte);
 }
+
 
 static bf_item *makeItem(void) {
     bf_item *item = calloc(1, sizeof(bf_item));
     return item;
 }
+
 
 static void freeItem(bf_item *item) {
     bf_item *bak;
@@ -129,6 +142,7 @@ static void freeItem(bf_item *item) {
         item = bak;
     }
 }
+
 
 bf_env *bf_setEnv(void) {
     bf_env *env = calloc(1, sizeof(bf_env));
@@ -142,16 +156,32 @@ bf_env *bf_setEnv(void) {
     return env;
 }
 
+
 void bf_freeEnv(bf_env *env) {
     freeItem(env->item);
     free(env);
 }
+
+
+void bf_resetEnv(bf_env *env) {
+    freeItem(env->item);
+
+    env->item = makeItem();
+    env->pitem.item = env->item;
+    env->pitem.index = 0;
+    env->pitem.base = env->item;
+    env->error_info = NULL;
+    env->step_mode = false;
+    env->information_mode = false;
+}
+
 
 void bf_initEnv(bf_env *env) {
     env->pitem.item = env->pitem.base;
     env->pitem.index = 0;
     env->error_info = NULL;
 }
+
 
 static void addItem(bf_item *global) {
     assert(global != NULL);
@@ -161,17 +191,19 @@ static void addItem(bf_item *global) {
     global->next->prev = global;
 }
 
+
 int bf_runBrainFuck(bf_code code, bf_env *env) {
     bf_byte byte = code->byte;
     int status = runBrainFuck(&byte, env);
 
     if (status != 0)
-        return 1;  // 返回1表示错误
+        return status;  // 返回1表示错误
     else {
         env->error_info = NULL;
         return 0;
     }
 }
+
 
 static int runBrainFuck(bf_byte *byte, bf_env *env) {
     while (**byte != '\0') {
@@ -181,6 +213,7 @@ static int runBrainFuck(bf_byte *byte, bf_env *env) {
     }
     return 0;
 }
+
 
 static int runBrainFuck_(bf_byte *byte, bf_env *env) {
     bf_pitem *pitem = &(env->pitem);
@@ -196,7 +229,7 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             int times = 0;
             if (isalnum(*(*byte + 1))) {
                 bf_byte new;
-                num = strtol((*byte + 1), &new, 10);
+                num = (int)strtol((*byte + 1), &new, 10);
                 *byte = new - 1;
                 times = num / 20;
                 num = num % 20;
@@ -215,6 +248,8 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
                     addItem(pitem->item);
                 pitem->item = pitem->item->next;
             }
+
+            assert(pitem->index >= 0);
             break;
         }
         case '<': {
@@ -222,7 +257,7 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             int times = 0;
             if (isalnum(*(*byte + 1))) {
                 bf_byte new;
-                num = strtol((*byte + 1), &new, 10);
+                num = (int)strtol((*byte + 1), &new, 10);
                 *byte = new - 1;
                 times = num / 20;
                 num = num % 20;
@@ -239,7 +274,7 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             }
 
             pitem->index -= num;
-            if (pitem->index < -1) {
+            if (pitem->index < 0) {
                 pitem->index = (TABLE_SIZE + pitem->index);  // 如 pitem->index = -1, 即代表获取最后一个元素, 下标为 TABLE_SIZE - 1
                 pitem->item = pitem->item->prev;
                 if (pitem->item == NULL) {
@@ -249,13 +284,15 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
                     env->item = pitem->item;
                 }
             }
+
+            assert(pitem->index >= 0);
             break;
         }
         case '+': {
             int num = 1;
             if (isalnum(*(*byte + 1))) {
                 bf_byte new;
-                num = strtol((*byte + 1), &new, 10);
+                num = (int)strtol((*byte + 1), &new, 10);
                 *byte = new - 1;
             }
             pitem->item->data[pitem->index] += num;
@@ -265,7 +302,7 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             int num = 1;
             if (isalnum(*(*byte + 1))) {
                 bf_byte new;
-                num = strtol((*byte + 1), &new, 10);
+                num = (int)strtol((*byte + 1), &new, 10);
                 *byte = new - 1;
             }
             pitem->item->data[pitem->index] -= num;
@@ -296,9 +333,9 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
                     continue;
             }
 
-            pitem->item->data[pitem->index] = strtol(num, &end, 10);
+            pitem->item->data[pitem->index] = (int)strtol(num, &end, 10);
             if (*end != '\0') {
-                env->error_info = "':' instruction encountered an illegal number";
+                env->error_info = "';' instruction encountered an illegal number";
                 return -1;
             }
 
@@ -312,7 +349,7 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             break;
         case '[':
             while (1) {
-                if (pitem->item->data[pitem->index] == 0) {  // 跳过代码直到遇到对应的]
+                 if (pitem->item->data[pitem->index] == 0) {  // 跳过代码直到遇到对应的]
                     int count = 1;
                     while (count > 0) {
                         (*byte)++;  // 读取下一个指令
@@ -362,10 +399,8 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
                 printf("continue...\n");
                 break;
             } else if (ch == 'm') {  // 进入菜单
-                if (env->step_func(env) != 0) {  // 调用函数 (stdin在该函数中清空)
-                    env->error_info = "step mode func error";
-                    return -1;
-                }
+                if (env->step_func(env) != 0)  // 调用函数 (stdin在该函数中清空)
+                    return -2;  // 直接退出执行
             }
         }
 
@@ -377,10 +412,12 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
     return 0;
 }
 
+
 void bf_printError(char *info, bf_env *env) {
     if (env->error_info != NULL)
-        printf("%s : %s\n", info, env->error_info);
+        fprintf(stderr, "%s : %s\n", info, env->error_info);
 }
+
 
 void bf_printPaperTape(bf_env *env) {
     unsigned count = 0;
@@ -407,11 +444,13 @@ void bf_printPaperTape(bf_env *env) {
     }
 }
 
+
 void bf_printHead(bf_env *env) {
     printf("head data: %d", env->pitem.item->data[env->pitem.index]);
     if (isprint(env->pitem.item->data[env->pitem.index]))
         printf("'%c'", env->pitem.item->data[env->pitem.index]);
 }
+
 
 void bf_printEnv(bf_env *env) {
     bf_printPaperTape(env);
@@ -420,28 +459,31 @@ void bf_printEnv(bf_env *env) {
     printf("\n");
 }
 
+
 void bf_printEnvWithMode(bf_env *env) {
     bf_printPaperTape(env);
     printf("\n");
     bf_printHead(env);
     printf("\n");
 
-    if (env->step_mode)  // 不修改实际值
+    if (env->step_mode)
         printf("step mode on\n");
     else
         printf("step mode off\n");
 
-    if (env->information_mode)  // 不修改实际值
+    if (env->information_mode)
         printf("information mode on\n");
     else
         printf("information mode off\n");
 }
+
 
 bf_STEP_FUNC bf_setEnvStepFunc(bf_env *env, bf_STEP_FUNC step_func) {
     bf_STEP_FUNC bak = env->step_func;
     env->step_func = step_func;
     return bak;
 }
+
 
 #define bf_setEnvModeFunc(name) bool bf_setEnv##name##Mode(bf_env *env, int mode) { \
 switch (mode) { \
@@ -452,6 +494,7 @@ default:break; \
 } \
 return env->name##_mode; \
 }
+
 
 bf_setEnvModeFunc(step)
 bf_setEnvModeFunc(information)

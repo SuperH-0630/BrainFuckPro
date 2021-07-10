@@ -5,6 +5,7 @@
 #define TABLE_SIZE (20)
 #define FILE_READ_SIZE (20)
 
+typedef signed char bf_data;
 typedef char *bf_byte;
 typedef struct bf_item bf_item;
 typedef struct bf_pitem bf_pitem;
@@ -30,7 +31,7 @@ struct bf_code {
 };
 
 struct bf_item {
-    int data[TABLE_SIZE];
+    bf_data data[TABLE_SIZE];
     struct bf_item *prev;
     struct bf_item *next;
 };
