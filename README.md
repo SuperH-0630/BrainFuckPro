@@ -37,7 +37,7 @@ Brainfuck，是一种极小化的程序语言，它是由Urban Müller在1993年
 ]       循环结束位置
 ?       读取头回到初始位置
 ```
-##命令行模式
+## 命令行模式
 执行完成指定文件后，BrainFuckPro进入命令行交互模式。使用者可以通过stdin即时写入指令操控读取头。
 命令行菜单支持的操作（同时为步进模式菜单）
 ```
@@ -56,7 +56,7 @@ c       清空屏幕 (调用系统clear命令)
 q       退出
 e       退出菜单
 ```
-##关于API
+## 关于API
 BrainFuckPro为C语言提供了相应的API。若需要使用，请链接库`BrainFuck_LIB`和包含头文件`brainfuck.h`。  
 ```c
 #define bf_setEnvMode(env, name, mode) (bf_setEnv##name##Mode((env), (mode)))
@@ -87,7 +87,7 @@ void bf_printEnvWithMode(bf_env *env);  // 打印env信息和env的mode信息
 bf_STEP_FUNC bf_setEnvStepFunc(bf_env *env, bf_STEP_FUNC step_func);  // 设置步进函数, 每次不仅时当用户输入m时则回调该函数(step_func)
 ```
 `bf_env`即图灵机的纸带，`bf_code`即读取头的指令。二者本质上均为指针，且在brainfuck.h中无具体实现，使用者可以使用`void *`来代替。
-##构建
+## 构建
 使用cmake+make来构建本项目。  
 创建目录
 ```shell
@@ -114,9 +114,9 @@ $ make install
 安装步骤不是必须的，你可以直接运行编译后的二进制文件。  
 可执行文件会安装在bin目录，动态库则会安装在lib目录（或bin目录），头文件则安装在include目录。  
 在windows平台下使用VisualStudio编译需要自行添加对getopt模块的支持。
-##声明
-###版权声明
-版权所有 (c) 2021 [SuperHuan](https://github.com/SuperH-0630) 保留所有权利。
+## 声明
+### 版权声明
+版权所有 (c) 2021 [SuperHuan](https://github.com/SuperH-0630) 保留所有权利。  
 BrainFuckPro编程语言C解释器由SuperHuan开发，技术归属SuperHuan。  
 本授权协议适用于BrainFuckPro编程语言C解释器，SuperHuan拥有对本授权协议最终解释权和修改权。  
 ### 免责声明
