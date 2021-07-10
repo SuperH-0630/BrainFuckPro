@@ -103,9 +103,10 @@ $ make
 ```shell
 $ make install
 ```
-可以在cmake时指定安装目录。  
-安装步骤不是必须的，你可以直接运行编译后的二进制文件。
-可执行文件会安装在bin目录，动态库则会安装在lib目录（或bin目录），头文件则安装在include目录。
+可以在cmake时指定安装目录。    
+安装步骤不是必须的，你可以直接运行编译后的二进制文件。  
+可执行文件会安装在bin目录，动态库则会安装在lib目录（或bin目录），头文件则安装在include目录。  
+在windows平台下使用VisualStudio编译需要自行添加对getopt模块的支持。
 ##声明
 ###版权声明
 版权所有 (c) 2021 [SuperHuan](https://github.com/SuperH-0630) 保留所有权利。
