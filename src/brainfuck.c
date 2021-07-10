@@ -12,15 +12,23 @@
 #define BF_VERSION_INFO "This is a magical version because no one knows how magical he is."
 #endif
 
-char *bf_getVersionInfo() {
+static bf_code make_bf_code(void);
+static void free_bf_code(bf_code code);
+static int runBrainFuck(bf_byte *byte, bf_env *env);
+static int runBrainFuck_(bf_byte *byte, bf_env *env);
+static void freeItem(bf_item *item);
+static bf_item *makeItem(void);
+static void addItem(bf_item *global);
+
+char *bf_getVersionInfo(void) {
     return BF_VERSION "\n" BF_VERSION_INFO "\n";
 }
 
-char *bf_getVersion() {
+char *bf_getVersion(void) {
     return BF_VERSION;
 }
 
-static bf_code make_bf_code() {
+static bf_code make_bf_code(void) {
     bf_code code = calloc(1, sizeof(struct bf_code));
     return code;
 }
@@ -108,7 +116,7 @@ void bf_printBrainFuck(bf_code code) {
     printf("%s", code->byte);
 }
 
-static bf_item *makeItem() {
+static bf_item *makeItem(void) {
     bf_item *item = calloc(1, sizeof(bf_item));
     return item;
 }
@@ -122,13 +130,15 @@ static void freeItem(bf_item *item) {
     }
 }
 
-bf_env *bf_setEnv() {
+bf_env *bf_setEnv(void) {
     bf_env *env = calloc(1, sizeof(bf_env));
     env->item = makeItem();
     env->pitem.item = env->item;
     env->pitem.index = 0;
     env->pitem.base = env->item;
     env->error_info = NULL;
+    env->step_mode = false;
+    env->information_mode = false;
     return env;
 }
 
@@ -151,7 +161,6 @@ static void addItem(bf_item *global) {
     global->next->prev = global;
 }
 
-static int runBrainFuck(bf_byte *byte, bf_env *env);
 int bf_runBrainFuck(bf_code code, bf_env *env) {
     bf_byte byte = code->byte;
     int status = runBrainFuck(&byte, env);
@@ -164,7 +173,6 @@ int bf_runBrainFuck(bf_code code, bf_env *env) {
     }
 }
 
-static int runBrainFuck_(bf_byte *byte, bf_env *env);
 static int runBrainFuck(bf_byte *byte, bf_env *env) {
     while (**byte != '\0') {
         int status = runBrainFuck_(byte, env);
@@ -176,6 +184,12 @@ static int runBrainFuck(bf_byte *byte, bf_env *env) {
 
 static int runBrainFuck_(bf_byte *byte, bf_env *env) {
     bf_pitem *pitem = &(env->pitem);
+    char *b = *byte;
+    if (env->information_mode) {
+        printf("Execute instructions: %c[%p]\n", *b, b);
+        bf_printEnv(env);
+    }
+
     switch (**byte) {
         case '>': {
             int num = 1;
@@ -333,6 +347,32 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             return -1;
     }
 
+    if (env->information_mode) {
+        printf("\nEnd execute instructions: %c[%p]\n", *b, b);
+        bf_printHead(env);
+        printf("\n\n");
+    }
+
+    if (env->step_mode && env->step_func != NULL) {  // 步进模式
+        int ch;
+        while (1) {
+            printf("(Type n or [enter] to continue. Type m to show menu.)\nEnter:");
+            ch = getc(stdin);
+            if (ch == 'n' || ch == '\n' || ch == EOF) { // 继续
+                printf("continue...\n");
+                break;
+            } else if (ch == 'm') {  // 进入菜单
+                if (env->step_func(env) != 0) {  // 调用函数 (stdin在该函数中清空)
+                    env->error_info = "step mode func error";
+                    return -1;
+                }
+            }
+        }
+
+        while ((ch = getc(stdin)) != '\n' && ch != EOF)  // 清除stdin
+            continue;
+    }
+
     (*byte)++;  // 读取下一个指令
     return 0;
 }
@@ -341,3 +381,77 @@ void bf_printError(char *info, bf_env *env) {
     if (env->error_info != NULL)
         printf("%s : %s\n", info, env->error_info);
 }
+
+void bf_printPaperTape(bf_env *env) {
+    unsigned count = 0;
+    bf_item *item = env->item;
+    while (true) {
+        for (int i = 0; i < TABLE_SIZE; i++) {
+            printf("[(%d)%d", count, item->data[i]);
+            if (isprint(item->data[i]))
+                printf("'%c'", item->data[i]);
+            if (i == env->pitem.index && item == env->pitem.item)
+                printf("(head)");
+            if (i == 0 && item == env->pitem.base)
+                printf("(base)");
+            printf("]");
+            if (i != TABLE_SIZE - 1)  // 不是最后一个
+                printf("-");
+            count++;
+        }
+        item = item->next;
+        if (item == NULL)
+            break;
+        else
+            printf("-");  // 换行接着输出
+    }
+}
+
+void bf_printHead(bf_env *env) {
+    printf("head data: %d", env->pitem.item->data[env->pitem.index]);
+    if (isprint(env->pitem.item->data[env->pitem.index]))
+        printf("'%c'", env->pitem.item->data[env->pitem.index]);
+}
+
+void bf_printEnv(bf_env *env) {
+    bf_printPaperTape(env);
+    printf("\n");
+    bf_printHead(env);
+    printf("\n");
+}
+
+void bf_printEnvWithMode(bf_env *env) {
+    bf_printPaperTape(env);
+    printf("\n");
+    bf_printHead(env);
+    printf("\n");
+
+    if (env->step_mode)  // 不修改实际值
+        printf("step mode on\n");
+    else
+        printf("step mode off\n");
+
+    if (env->information_mode)  // 不修改实际值
+        printf("information mode on\n");
+    else
+        printf("information mode off\n");
+}
+
+bf_STEP_FUNC bf_setEnvStepFunc(bf_env *env, bf_STEP_FUNC step_func) {
+    bf_STEP_FUNC bak = env->step_func;
+    env->step_func = step_func;
+    return bak;
+}
+
+#define bf_setEnvModeFunc(name) bool bf_setEnv##name##Mode(bf_env *env, int mode) { \
+switch (mode) { \
+case 1:env->name##_mode = true;break; \
+case 0:env->name##_mode = false;break; \
+case -1:env->name##_mode = !env->name##_mode;break; \
+default:break; \
+} \
+return env->name##_mode; \
+}
+
+bf_setEnvModeFunc(step)
+bf_setEnvModeFunc(information)
