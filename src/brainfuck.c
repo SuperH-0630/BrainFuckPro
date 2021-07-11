@@ -289,27 +289,27 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             break;
         }
         case '+': {
-            int num = 1;
+            bf_data num = 1;
             if (isalnum(*(*byte + 1))) {
                 bf_byte new;
-                num = (int)strtol((*byte + 1), &new, 10);
+                num = (bf_data)strtol((*byte + 1), &new, 10);
                 *byte = new - 1;
             }
             pitem->item->data[pitem->index] += num;
             break;
         }
         case '-':{
-            int num = 1;
+            bf_data num = 1;
             if (isalnum(*(*byte + 1))) {
                 bf_byte new;
-                num = (int)strtol((*byte + 1), &new, 10);
+                num = (bf_data)strtol((*byte + 1), &new, 10);
                 *byte = new - 1;
             }
             pitem->item->data[pitem->index] -= num;
             break;
         }
         case ',':  // 输入
-            pitem->item->data[pitem->index] = getc(stdin);
+            pitem->item->data[pitem->index] = (bf_data)getc(stdin);
             if (pitem->item->data[pitem->index] != '\n' && pitem->item->data[pitem->index] != EOF) {
                 int ch;
                 while ((ch = getc(stdin)) != '\n' && ch != EOF)
@@ -317,7 +317,7 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             }
             break;
         case '.': {  // 输出
-            int data = pitem->item->data[pitem->index];
+            bf_data data = pitem->item->data[pitem->index];
             putc(data, stdout);
             fflush(stdout);
             break;
@@ -333,7 +333,7 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
                     continue;
             }
 
-            pitem->item->data[pitem->index] = (int)strtol(num, &end, 10);
+            pitem->item->data[pitem->index] = (bf_data)strtol(num, &end, 10);
             if (*end != '\0') {
                 env->error_info = "';' instruction encountered an illegal number";
                 return -1;
@@ -413,25 +413,31 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
 }
 
 
-void bf_printError(char *info, bf_env *env) {
+char *bf_printError(char *info, bf_env *env) {
     if (env->error_info != NULL)
         fprintf(stderr, "%s : %s\n", info, env->error_info);
+    return env->error_info;
+}
+
+
+static void printTape(bf_env *env, bf_item *item, int i, long long count){
+    printf("[(%d)%d", count, item->data[i]);
+    if (isprint(item->data[i]))
+        printf("'%c'", item->data[i]);
+    if (i == env->pitem.index && item == env->pitem.item)
+        printf("(head)");
+    if (i == 0 && item == env->pitem.base)
+        printf("(base)");
+    printf("]");
 }
 
 
 void bf_printPaperTape(bf_env *env) {
-    unsigned count = 0;
+    long long count = 0;
     bf_item *item = env->item;
     while (true) {
         for (int i = 0; i < TABLE_SIZE; i++) {
-            printf("[(%d)%d", count, item->data[i]);
-            if (isprint(item->data[i]))
-                printf("'%c'", item->data[i]);
-            if (i == env->pitem.index && item == env->pitem.item)
-                printf("(head)");
-            if (i == 0 && item == env->pitem.base)
-                printf("(base)");
-            printf("]");
+            printTape(env, item, i, count);
             if (i != TABLE_SIZE - 1)  // 不是最后一个
                 printf("-");
             count++;
@@ -445,6 +451,47 @@ void bf_printPaperTape(bf_env *env) {
 }
 
 
+void bf_printPaperTapeNear(bf_env *env) {
+    int first_index;
+    int count;
+    bf_item *item;
+
+    count = -20;
+    item = env->pitem.item;
+    first_index = env->pitem.index - 20;
+    if (first_index < 0) {
+        if (item->prev != NULL) {
+            first_index = TABLE_SIZE + first_index;
+            item = item->prev;
+        } else {
+            first_index = 0;
+            printf("env->pitem.index = %d\n", env->pitem.index);
+            count = -(env->pitem.index);  // 保证第env->pitem.index时count为0
+            printf("count = %d\n", count);
+        }
+    }
+
+    for (int flat = 0; count <= 20; flat++) {
+        int i = 0;
+        if (flat == 0)
+            i = first_index;
+
+        for (; i < TABLE_SIZE && count <= 20; i++) {
+            printTape(env, item, i, count);
+            if (i != TABLE_SIZE - 1 && count != 20)  // 不是最后一个
+                printf("-");
+            count++;
+        }
+        item = item->next;
+        if (item == NULL)
+            break;
+        else if (count != 20)  // 不是最后一个
+            printf("-");  // 换行接着输出
+    }
+
+}
+
+
 void bf_printHead(bf_env *env) {
     printf("head data: %d", env->pitem.item->data[env->pitem.index]);
     if (isprint(env->pitem.item->data[env->pitem.index]))
@@ -453,7 +500,7 @@ void bf_printHead(bf_env *env) {
 
 
 void bf_printEnv(bf_env *env) {
-    bf_printPaperTape(env);
+    bf_printPaperTapeNear(env);
     printf("\n");
     bf_printHead(env);
     printf("\n");

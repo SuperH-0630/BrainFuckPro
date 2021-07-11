@@ -158,6 +158,7 @@ void printMenu(void) {
     printf("+ d + print code after parser    +\n");
     printf("+ w + print env information      +\n");
     printf("+ p + print paper tape           +\n");
+    printf("+ t + print paper tape little    +\n");
     printf("+ r + print read head            +\n");
     printf("+ s + run in step model          +\n");
     printf("+ i + run with information       +\n");
@@ -243,6 +244,10 @@ int clInformation(int ch, bf_env *env) {
             break;
         case 'p':
             bf_printPaperTape(env);
+            printf("\n");
+            break;
+        case 't':
+            bf_printPaperTapeNear(env);
             printf("\n");
             break;
         case 'r':

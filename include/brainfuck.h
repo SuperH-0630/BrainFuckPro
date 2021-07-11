@@ -1,5 +1,6 @@
 #ifndef BRAINFUCK_BRAINFUCK_H
 #define BRAINFUCK_BRAINFUCK_H
+#include <stdio.h>
 #include <stdbool.h>
 
 #ifndef TYPEDEF_bf_code
@@ -34,7 +35,7 @@ char *bf_getVersion(void);  // 获取版本
 // bf_env指针通常可以使用void *来代替
 bf_env *bf_setEnv(void);  // 设置一个运行环境(返回一个指针)
 void bf_freeEnv(bf_env *env);  // 释放一个环境
-void bf_resetEnv(bf_env *env);
+void bf_resetEnv(bf_env *env);  // 重启env，清空一切数据
 void bf_initEnv(bf_env *env);  // 复位读取头到初始位置
 
 // bf_code指针通常可以使用void *来代替
@@ -43,8 +44,9 @@ bf_code bf_parserBrainFuck_File(FILE *file);  // 读取文件并生成代码(返
 bf_code bf_parserBrainFuck_Str(const char *str); // 读取字符串并生成代码(返回一个code)
 void bf_printBrainFuck(bf_code code); // 打印代码
 int bf_runBrainFuck(bf_code code, bf_env *env); // 在指定环境中执行代码 (返回0表示无异常)
-void bf_printError(char *info, bf_env *env);  // 打印错误信息, 若无错误则不执行
+char *bf_printError(char *info, bf_env *env);  // 打印错误信息, 若无错误则不执行, 返回错误信息（若无则返回NULL）
 void bf_printPaperTape(bf_env *env);  // 打印纸带
+void bf_printPaperTapeNear(bf_env *env);  // 打印前后20个
 void bf_printHead(bf_env *env);  // 打印读取头信息
 void bf_printEnv(bf_env *env);  // 打印env信息
 void bf_printEnvWithMode(bf_env *env);  // 打印env信息和env的mode信息

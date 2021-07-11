@@ -2,7 +2,7 @@
 #define BRAINFUCK__BRAINFUCK_H
 #include <stdbool.h>
 
-#define TABLE_SIZE (20)
+#define TABLE_SIZE (3000) /* 默认3000个格子 */
 #define FILE_READ_SIZE (20)
 
 typedef signed char bf_data;
