@@ -410,9 +410,11 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
                 printf("(Type j to jump to the next point. Type g to ignore all point.)\n");
             printf("Enter:");
             switch ((ch = getc(stdin))) {
-                case 'n':
                 case '\n':
                 case EOF:
+                    ungetc(ch, stdin);  // 放回该符号, 在清理stdin的时候再读取出来
+                    // 没有break
+                case 'n':
                     printf("continue...\n");
                     goto BREAK_WHILE;  // 跳出while(1)循环
                 case 'm':
