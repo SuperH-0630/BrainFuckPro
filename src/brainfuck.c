@@ -58,16 +58,17 @@ bf_code bf_parserBrainFuck_Str(const char *str) {
     code->byte = calloc(FILE_READ_SIZE + 1, sizeof(bf_byte));
 
     while ((ch = str[str_index++]) != '\0'){
-        if (ch == '@') {  // 注释语句(忽略所有到行末, 或同行的@)
-            while ((ch = str[str_index++]) != '\n' && ch != '@' && ch != '\0')
+        if (ch == '#') {  // 注释语句(忽略所有到行末)
+            while ((ch = str[str_index++]) != '\n' && ch != '\0')
                 continue;
             continue;
-        } else if (ch != '>' && ch != '<' &&
-                   ch != '.' && ch != ',' &&
-                   ch != '+' && ch != '-' &&
-                   ch != ':' && ch != ';' &&
-                   ch != '[' && ch != ']' &&
-                   ch != '?' &&!isalnum(ch)) {
+        } else if (ch != '>' && ch != '<' &&  // 位移
+                   ch != '.' && ch != ',' &&  // IO操作
+                   ch != '+' && ch != '-' &&  // 数据操作
+                   ch != ':' && ch != ';' &&  // IO操作
+                   ch != '[' && ch != ']' &&  // 条件循环
+                   ch != '?' && ch != '@' &&  // 重置、断点
+                   !isalnum(ch)) {
             continue;  // 其他内容也被忽略
         }
 
@@ -95,15 +96,17 @@ bf_code bf_parserBrainFuck_File(FILE *file) {
     code->byte = calloc(FILE_READ_SIZE + 1, sizeof(bf_byte));
 
     while ((ch = getc(file)) != EOF){
-        if (ch == '@') {  // 注释语句(忽略所有到行末, 或同行的@)
-            while ((ch = getc(file)) != '\n' && ch != '@' && ch != EOF)
+        if (ch == '#') {  // 注释语句(忽略所有到行末)
+            while ((ch = getc(file)) != '\n' && ch != '\0')
                 continue;
             continue;
-        } else if (ch != '>' && ch != '<' &&
-            ch != '.' && ch != ',' &&
-            ch != '+' && ch != '-' &&
-            ch != ':' && ch != ';' &&
-            ch != '[' && ch != ']' && !isalnum(ch)) {
+        } else if (ch != '>' && ch != '<' &&  // 位移
+                   ch != '.' && ch != ',' &&  // IO操作
+                   ch != '+' && ch != '-' &&  // 数据操作
+                   ch != ':' && ch != ';' &&  // IO操作
+                   ch != '[' && ch != ']' &&  // 条件循环
+                   ch != '?' && ch != '@' &&  // 重置、断点
+                   !isalnum(ch)) {
             continue;  // 其他内容也被忽略
         }
 
@@ -153,6 +156,7 @@ bf_env *bf_setEnv(void) {
     env->error_info = NULL;
     env->step_mode = false;
     env->information_mode = false;
+    env->debug_mode = bf_no_debug;
     return env;
 }
 
@@ -196,6 +200,7 @@ int bf_runBrainFuck(bf_code code, bf_env *env) {
     bf_byte byte = code->byte;
     int status = runBrainFuck(&byte, env);
 
+    env->debug_mode = bf_no_debug;
     if (status != 0)
         return status;  // 返回1表示错误
     else {
@@ -379,6 +384,10 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
             (*byte)++;
             env->error_info = "Illegal ']' encountered";
             return 1;
+        case '@':
+            if (env->debug_mode == bf_no_debug)
+                env->debug_mode = bf_in_debug;
+            goto RETURN;
         default:
             env->error_info = "unsupported command";
             return -1;
@@ -390,24 +399,51 @@ static int runBrainFuck_(bf_byte *byte, bf_env *env) {
         printf("\n\n");
     }
 
-    if (env->step_mode && env->step_func != NULL) {  // 步进模式
+    if ((env->step_mode || env->debug_mode == bf_in_debug) && env->step_func != NULL) {  // 步进模式/调试模式
         int ch;
+
+        bf_printHead(env);
+        printf("\n");
         while (1) {
-            printf("(Type n or [enter] to continue. Type m to show menu.)\nEnter:");
-            ch = getc(stdin);
-            if (ch == 'n' || ch == '\n' || ch == EOF) { // 继续
-                printf("continue...\n");
-                break;
-            } else if (ch == 'm') {  // 进入菜单
-                if (env->step_func(env) != 0)  // 调用函数 (stdin在该函数中清空)
-                    return -2;  // 直接退出执行
+            printf("(Type n or [enter] to continue. Type m to show menu.)\n");
+            if (env->debug_mode)
+                printf("(Type j to jump to the next point. Type g to ignore all point.)\n");
+            printf("Enter:");
+            switch ((ch = getc(stdin))) {
+                case 'n':
+                case '\n':
+                case EOF:
+                    printf("continue...\n");
+                    goto BREAK_WHILE;  // 跳出while(1)循环
+                case 'm':
+                    if (env->step_func(env) != 0)  // 调用函数 (stdin在该函数中清空)
+                        return -2;  // 直接退出执行
+                    break;
+                case 'j':
+                    if (env->debug_mode == bf_in_debug) {
+                        env->debug_mode = bf_no_debug;
+                        printf("jump...\n");
+                        goto BREAK_WHILE;  // 跳出while(1)循环
+                    }
+                    break;
+                case 'g':
+                    if (env->debug_mode == bf_in_debug) {
+                        env->debug_mode = bf_not_debug;
+                        printf("continue...\n");
+                        goto BREAK_WHILE;  // 跳出while(1)循环
+                    }
+                    break;
+                default:
+                    break;
             }
         }
+        BREAK_WHILE:  // 跳出上面的循环
 
         while ((ch = getc(stdin)) != '\n' && ch != EOF)  // 清除stdin
             continue;
     }
 
+RETURN:
     (*byte)++;  // 读取下一个指令
     return 0;
 }
@@ -421,7 +457,7 @@ char *bf_printError(char *info, bf_env *env) {
 
 
 static void printTape(bf_env *env, bf_item *item, int i, long long count){
-    printf("[(%d)%d", count, item->data[i]);
+    printf("[(%lld)%d", count, item->data[i]);
     if (isprint(item->data[i]))
         printf("'%c'", item->data[i]);
     if (i == env->pitem.index && item == env->pitem.item)

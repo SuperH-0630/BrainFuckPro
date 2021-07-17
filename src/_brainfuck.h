@@ -49,6 +49,11 @@ struct bf_env {
 
     bool step_mode;
     bool information_mode;
+    enum {
+        bf_no_debug = 0,  // 暂无断点
+        bf_in_debug,  // 读取到断点
+        bf_not_debug,  // 此次运行忽略断点
+    } debug_mode;
     bf_STEP_FUNC step_func;  // 步进处理函数
 };
 

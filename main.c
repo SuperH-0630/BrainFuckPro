@@ -131,11 +131,14 @@ void printUsage(void) {
     printf(" m show CommandLine Menu\n");
     printf("CommandLine Menu: \n");
     printMenu();
+    printf("Note: CommandLine does not support entering multiple lines of code\n");
 
     printf("\n");
     printf("Step Options: \n");
     printf(" n continue\n");
     printf(" m show step menu\n");
+    printf(" j (Only debug) Jump to the next debug point\n");
+    printf(" g (Only debug) Ignore all debug point (just in this code)\n");
     printf("Step Menu: \n");
     printMenu();
 
